@@ -9,6 +9,19 @@ let quotes = [
   { text: "The best time to plant a tree was 20 years ago. The second best time is now.", category: "Wisdom" }
 ];
 
+// Function to save quotes to local storage
+function saveQuotes() {
+  localStorage.setItem('quotes', JSON.stringify(quotes));
+}
+
+// Function to load quotes from local storage
+function loadQuotes() {
+  const storedQuotes = localStorage.getItem('quotes');
+  if (storedQuotes) {
+    quotes = JSON.parse(storedQuotes);
+  }
+}
+
 // Function to display a random quote
 function showRandomQuote() {
   // Select a random quote from the array
@@ -27,6 +40,9 @@ function showRandomQuote() {
       Category: ${randomQuote.category}
     </p>
   `;
+  
+  // Store the last viewed quote in session storage
+  sessionStorage.setItem('lastViewedQuote', JSON.stringify(randomQuote));
 }
 
 // Function to add a new quote
@@ -48,6 +64,9 @@ function addQuote() {
   };
   
   quotes.push(newQuote);
+  
+  // Save quotes to local storage
+  saveQuotes();
   
   // Clear input fields
   document.getElementById('newQuoteText').value = '';
@@ -130,6 +149,9 @@ function createAddQuoteForm() {
       category: quoteCategory
     });
     
+    // Save quotes to local storage
+    saveQuotes();
+    
     // Clear inputs
     document.getElementById('dynamicQuoteText').value = '';
     document.getElementById('dynamicQuoteCategory').value = '';
@@ -147,14 +169,102 @@ function createAddQuoteForm() {
   document.body.appendChild(formDiv);
 }
 
+// Function to export quotes to JSON file
+function exportToJsonFile() {
+  // Convert quotes array to JSON string
+  const jsonData = JSON.stringify(quotes, null, 2);
+  
+  // Create a Blob from the JSON data
+  const blob = new Blob([jsonData], { type: 'application/json' });
+  
+  // Create a download link
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'quotes.json';
+  
+  // Trigger the download
+  document.body.appendChild(a);
+  a.click();
+  
+  // Clean up
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  alert('Quotes exported successfully!');
+}
+
+// Function to import quotes from JSON file
+function importFromJsonFile(event) {
+  const fileReader = new FileReader();
+  fileReader.onload = function(event) {
+    try {
+      const importedQuotes = JSON.parse(event.target.result);
+      
+      // Validate that imported data is an array
+      if (!Array.isArray(importedQuotes)) {
+        alert('Invalid file format. Expected an array of quotes.');
+        return;
+      }
+      
+      // Validate that each quote has required properties
+      const isValid = importedQuotes.every(quote => 
+        quote.hasOwnProperty('text') && quote.hasOwnProperty('category')
+      );
+      
+      if (!isValid) {
+        alert('Invalid quote format. Each quote must have "text" and "category" properties.');
+        return;
+      }
+      
+      // Add imported quotes to existing quotes
+      quotes.push(...importedQuotes);
+      
+      // Save to local storage
+      saveQuotes();
+      
+      alert('Quotes imported successfully!');
+      
+      // Display a random quote to show the import worked
+      showRandomQuote();
+    } catch (error) {
+      alert('Error parsing JSON file: ' + error.message);
+    }
+  };
+  
+  fileReader.readAsText(event.target.files[0]);
+}
+
 // Event listener for the "Show New Quote" button
 document.addEventListener('DOMContentLoaded', function() {
+  // Load quotes from local storage on initialization
+  loadQuotes();
+  
   // Add event listener to the new quote button
   const newQuoteButton = document.getElementById('newQuote');
   newQuoteButton.addEventListener('click', showRandomQuote);
   
-  // Display an initial quote when the page loads
-  showRandomQuote();
+  // Check if there's a last viewed quote in session storage
+  const lastViewedQuote = sessionStorage.getItem('lastViewedQuote');
+  if (lastViewedQuote) {
+    // Display the last viewed quote from the session
+    const quote = JSON.parse(lastViewedQuote);
+    const quoteDisplay = document.getElementById('quoteDisplay');
+    quoteDisplay.innerHTML = `
+      <p style="font-size: 18px; font-style: italic; margin: 20px 0;">
+        "${quote.text}"
+      </p>
+      <p style="font-weight: bold; color: #555;">
+        Category: ${quote.category}
+      </p>
+      <p style="font-size: 12px; color: #999;">
+        (Last viewed quote from this session)
+      </p>
+    `;
+  } else {
+    // Display an initial quote when the page loads
+    showRandomQuote();
+  }
   
   // Optional: Uncomment the line below to create the form dynamically
   // createAddQuoteForm();
