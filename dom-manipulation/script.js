@@ -171,14 +171,14 @@ async function syncQuotes() {
     // Notify user
     if (hasConflicts) {
       showNotification(
-        `Sync complete! ${conflicts.length} new quote(s) added from server.`,
+        `Quotes synced with server! ${conflicts.length} new quote(s) added from server.`,
         'success'
       );
       
       // Log conflicts for debugging
       console.log('Conflicts resolved:', conflicts);
     } else {
-      showNotification('Sync complete! No new updates from server.', 'success');
+      showNotification('Quotes synced with server! No new updates from server.', 'success');
     }
     
     // Update last sync time
