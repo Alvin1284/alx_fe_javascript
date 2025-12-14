@@ -9,6 +9,42 @@ let quotes = [
   { text: "The best time to plant a tree was 20 years ago. The second best time is now.", category: "Wisdom" }
 ];
 
+// Server configuration for syncing
+const SERVER_URL = 'https://jsonplaceholder.typicode.com/posts';
+const SYNC_INTERVAL = 30000; // Sync every 30 seconds
+let syncInterval = null;
+
+// Function to show notification to user
+function showNotification(message, type = 'info') {
+  const notification = document.getElementById('syncNotification');
+  notification.textContent = message;
+  notification.style.display = 'block';
+  
+  // Set color based on type
+  switch(type) {
+    case 'success':
+      notification.style.backgroundColor = '#4CAF50';
+      notification.style.color = 'white';
+      break;
+    case 'error':
+      notification.style.backgroundColor = '#f44336';
+      notification.style.color = 'white';
+      break;
+    case 'warning':
+      notification.style.backgroundColor = '#ff9800';
+      notification.style.color = 'white';
+      break;
+    default:
+      notification.style.backgroundColor = '#2196F3';
+      notification.style.color = 'white';
+  }
+  
+  // Auto-hide after 5 seconds
+  setTimeout(() => {
+    notification.style.display = 'none';
+  }, 5000);
+}
+
 // Function to save quotes to local storage
 function saveQuotes() {
   localStorage.setItem('quotes', JSON.stringify(quotes));
@@ -19,6 +55,166 @@ function loadQuotes() {
   const storedQuotes = localStorage.getItem('quotes');
   if (storedQuotes) {
     quotes = JSON.parse(storedQuotes);
+  }
+}
+
+// Function to fetch quotes from server
+async function fetchQuotesFromServer() {
+  try {
+    showNotification('Fetching quotes from server...', 'info');
+    
+    const response = await fetch(SERVER_URL);
+    if (!response.ok) {
+      throw new Error('Failed to fetch from server');
+    }
+    
+    const data = await response.json();
+    
+    // Transform server data to quote format (simulating real data)
+    // Using first 5 posts from JSONPlaceholder as simulated quotes
+    const serverQuotes = data.slice(0, 5).map(post => ({
+      text: post.title,
+      category: 'Server',
+      id: post.id,
+      serverTimestamp: Date.now()
+    }));
+    
+    return serverQuotes;
+  } catch (error) {
+    console.error('Error fetching from server:', error);
+    showNotification('Failed to fetch from server: ' + error.message, 'error');
+    return [];
+  }
+}
+
+// Function to post quotes to server
+async function postQuotesToServer(quotesToPost) {
+  try {
+    const response = await fetch(SERVER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        quotes: quotesToPost,
+        timestamp: Date.now()
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to post to server');
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error posting to server:', error);
+    showNotification('Failed to post to server: ' + error.message, 'error');
+    return null;
+  }
+}
+
+// Function to resolve conflicts between local and server data
+function resolveConflicts(localQuotes, serverQuotes) {
+  const conflicts = [];
+  const mergedQuotes = [...localQuotes];
+  
+  // Check for new quotes from server
+  serverQuotes.forEach(serverQuote => {
+    const existsLocally = localQuotes.some(localQuote => 
+      localQuote.text === serverQuote.text && localQuote.category === serverQuote.category
+    );
+    
+    if (!existsLocally) {
+      mergedQuotes.push(serverQuote);
+      conflicts.push({
+        type: 'new',
+        quote: serverQuote
+      });
+    }
+  });
+  
+  return {
+    mergedQuotes,
+    conflicts,
+    hasConflicts: conflicts.length > 0
+  };
+}
+
+// Main sync function
+async function syncQuotes() {
+  try {
+    showNotification('Syncing with server...', 'info');
+    
+    // Fetch quotes from server
+    const serverQuotes = await fetchQuotesFromServer();
+    
+    if (serverQuotes.length === 0) {
+      showNotification('No data received from server', 'warning');
+      return;
+    }
+    
+    // Get local quotes
+    const localQuotes = [...quotes];
+    
+    // Resolve conflicts (server data takes precedence)
+    const { mergedQuotes, conflicts, hasConflicts } = resolveConflicts(localQuotes, serverQuotes);
+    
+    // Update local quotes with merged data
+    quotes = mergedQuotes;
+    saveQuotes();
+    populateCategories();
+    
+    // Post updated quotes back to server
+    await postQuotesToServer(quotes);
+    
+    // Notify user
+    if (hasConflicts) {
+      showNotification(
+        `Sync complete! ${conflicts.length} new quote(s) added from server.`,
+        'success'
+      );
+      
+      // Log conflicts for debugging
+      console.log('Conflicts resolved:', conflicts);
+    } else {
+      showNotification('Sync complete! No new updates from server.', 'success');
+    }
+    
+    // Update last sync time
+    localStorage.setItem('lastSyncTime', Date.now().toString());
+    
+    // Refresh display
+    filterQuotes();
+    
+  } catch (error) {
+    console.error('Sync error:', error);
+    showNotification('Sync failed: ' + error.message, 'error');
+  }
+}
+
+// Function to start periodic syncing
+function startPeriodicSync() {
+  // Clear any existing interval
+  if (syncInterval) {
+    clearInterval(syncInterval);
+  }
+  
+  // Set up periodic sync
+  syncInterval = setInterval(() => {
+    console.log('Performing periodic sync...');
+    syncQuotes();
+  }, SYNC_INTERVAL);
+  
+  console.log(`Periodic sync started (every ${SYNC_INTERVAL / 1000} seconds)`);
+}
+
+// Function to stop periodic syncing
+function stopPeriodicSync() {
+  if (syncInterval) {
+    clearInterval(syncInterval);
+    syncInterval = null;
+    console.log('Periodic sync stopped');
   }
 }
 
@@ -323,6 +519,22 @@ document.addEventListener('DOMContentLoaded', function() {
   } else {
     // Display an initial quote based on filter when the page loads
     filterQuotes();
+  }
+  
+  // Initialize server sync
+  // Perform initial sync after a short delay
+  setTimeout(() => {
+    syncQuotes();
+  }, 2000);
+  
+  // Start periodic syncing
+  startPeriodicSync();
+  
+  // Show last sync time if available
+  const lastSyncTime = localStorage.getItem('lastSyncTime');
+  if (lastSyncTime) {
+    const timeSinceSync = Math.floor((Date.now() - parseInt(lastSyncTime)) / 1000);
+    console.log(`Last sync was ${timeSinceSync} seconds ago`);
   }
   
   // Optional: Uncomment the line below to create the form dynamically

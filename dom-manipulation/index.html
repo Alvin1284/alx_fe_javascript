@@ -8,12 +8,15 @@
   <body>
     <h1>Dynamic Quote Generator</h1>
     
+    <div id="syncNotification" style="display: none; padding: 10px; margin: 10px 0; border-radius: 5px; font-weight: bold;"></div>
+    
     <div>
       <label for="categoryFilter">Filter by Category:</label>
       <select id="categoryFilter" onchange="filterQuotes()">
         <option value="all">All Categories</option>
         <!-- Dynamically populated categories -->
       </select>
+      <button onclick="syncQuotes()" style="margin-left: 10px;">Sync with Server</button>
     </div>
     
     <div id="quoteDisplay"></div>
